@@ -156,6 +156,30 @@ class ParameterSet(
             ParameterSet.extract_from(x, force_tuple=force_tuple) for x in argvalues
         ]
 
+    @staticmethod
+    def _extract_nested_parameters(parameters: List["ParameterSet"]) -> List["ParameterSet"]:
+
+        def _unpack_parameterset(paramset: ParameterSet):
+            nested_values = []
+            nested_ids = []
+            marks = list(paramset.marks)
+            for value in paramset.values:
+                if isinstance(value, ParameterSet):
+                    n_values, n_marks, n_id = _unpack_parameterset(value)
+                    nested_values.append(*n_values)
+                    if n_marks:
+                        marks.append(*n_marks)
+                    nested_ids.append(n_id)
+                else:
+                    nested_values.append(value)
+            return nested_values, marks, paramset.id or "-".join(nested_ids)
+
+        new_params = []
+        for parameter in parameters:
+            values, marks, id = _unpack_parameterset(parameter)
+            new_params.append(ParameterSet.param(*values, marks=marks, id=id))
+        return new_params
+
     @classmethod
     def _for_parametrize(
         cls,
@@ -169,6 +193,7 @@ class ParameterSet(
         parameters = cls._parse_parametrize_parameters(argvalues, force_tuple)
         del argvalues
 
+        parameters = cls._extract_nested_parameters(parameters)
         if parameters:
             # Check all parameter sets have the correct number of values.
             for param in parameters:
